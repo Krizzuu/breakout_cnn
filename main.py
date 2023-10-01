@@ -23,5 +23,5 @@ if __name__ == '__main__':
             env.render()
             action = env.action_space.sample()
             state, reward, done, truncated, info = env.step(action)
-    pass
+
 
