@@ -18,7 +18,7 @@ def process_frame(frame, xy=64):
     # remove irrelevant parts - scoreboard, lifes
     frame = frame[31:200, 7:155]
     frame = cv.resize(frame, (xy, xy), interpolation=cv.INTER_NEAREST)
-    cv.imwrite("./debug_img/test.png", frame)
+    # cv.imwrite("./debug_img/test.png", frame)
     frame = frame.reshape(1, 1, xy, xy)
     return frame
 
