@@ -1,7 +1,6 @@
 import gymnasium as gym
-import cv2 as cv
 
-from model import CnnModel
+from frame_buffer import FrameBuffer
 from replay_buffer import ReplayBuffer
 
 env_settings = {
@@ -12,36 +11,23 @@ env_settings = {
     'goal_mean_100_reward': 475
 }
 
-
-def process_frame(frame, xy=64):
-    frame = cv.cvtColor(frame, cv.COLOR_RGB2GRAY)
-    # remove irrelevant parts - scoreboard, lifes
-    frame = frame[31:200, 7:155]
-    frame = cv.resize(frame, (xy, xy), interpolation=cv.INTER_NEAREST)
-    # cv.imwrite("./debug_img/test.png", frame)
-    frame = frame.reshape(1, 1, xy, xy)
-    return frame
-
-
-model = CnnModel()
+frame_buffer = FrameBuffer()
 replay_buffer = ReplayBuffer()
 
 if __name__ == '__main__':
     env = gym.make(env_settings['env_name'], render_mode="human")
     for _ in range(3):  # run for 3 episodes
-        frame, _ = env.reset()
-        frame = process_frame(frame)
+        state, _ = env.reset()
         done = False
         while not done:
             env.render()
-            # action = env.action_space.sample()
-            # action = model.forward(state)  # TODO
             action = 1
-            new_frame, reward, done, truncated, info = env.step(action)
-            new_frame = process_frame(new_frame)
+            new_state, reward, done, truncated, info = env.step(action)
+            frame_buffer.add_frame(new_state)
+            i = frame_buffer.get_image()
             failed = done and not truncated
-            experience = (frame, action, reward, new_frame, float(failed))
+            experience = (state, action, reward, new_state, float(failed))
             replay_buffer.store(experience)
-            frame = new_frame
+            state = new_state
 
 
