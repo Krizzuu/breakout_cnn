@@ -2,7 +2,7 @@ import torchvision.transforms.v2 as transforms
 import numpy as np
 
 
-def process_frame(frame):
+def process_frame(frame, hw):
     gray_transform = transforms.Compose([
         transforms.ToPILImage(),
         transforms.Grayscale(),
@@ -15,24 +15,22 @@ def process_frame(frame):
 
 
 class FrameBuffer:
-    def __init__(self, max_size=2, alpha=0.4):
-        self._buffer = np.zeros((3, 84, 84))
-        self.max_size = max_size
-        self._alpha = alpha
-        self._idx = 0
+    def __init__(self, max_size=2, alpha=0.4, hw=84):
+        self._buffer = []           # memory for last frames
+        self.max_size = max_size    # max size of memory
+        self._alpha = alpha         # discount factor for oldest memories
+        self.hw = hw                # height and width of frames
 
     def add_frame(self, frame):
-        if self._idx > 0:
-            self._buffer[2] = self._buffer[1]
-            self._buffer[1] = self._buffer[0]
-        frame = process_frame(frame)
-        self._buffer[0] = frame
-        self._idx += 1
+        if len(self._buffer) == self.max_size:
+            self._buffer.pop()
+        frame = process_frame(frame, self.hw)
+        self._buffer.insert(0, frame)
 
     def get_image(self):
-        img = np.zeros_like(self._buffer[0])
+        img = self._buffer[0].copy()
         alpha = self._alpha
-        for i in range(self._idx):
+        for i in range(1, len(self._buffer)):
             img += alpha * self._buffer[i]
             alpha *= self._alpha
         img = np.clip(img, 0.0, 1.0)
