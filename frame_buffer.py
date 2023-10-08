@@ -16,10 +16,10 @@ def process_frame(frame, hw):
 
 class FrameBuffer:
     def __init__(self, max_size=2, alpha=0.4, hw=84):
-        self._buffer = []           # memory for last frames
-        self.max_size = max_size    # max size of memory
-        self._alpha = alpha         # discount factor for oldest memories
-        self.hw = hw                # height and width of frames
+        self._buffer = []  # memory for last frames
+        self.max_size = max_size  # max size of memory
+        self._alpha = alpha  # discount factor for oldest memories
+        self.hw = hw  # height and width of frames
 
     def add_frame(self, frame):
         if len(self._buffer) == self.max_size:
@@ -35,3 +35,6 @@ class FrameBuffer:
             alpha *= self._alpha
         img = np.clip(img, 0.0, 1.0)
         return img
+
+    def clear(self):
+        self._buffer.clear()

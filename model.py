@@ -1,8 +1,12 @@
+import time
+from itertools import count
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from torch import optim
+from PIL import Image
 
 from frame_buffer import FrameBuffer
 from replay_buffer import ReplayBuffer
@@ -107,14 +111,72 @@ class DQN:
         self.replay_buffer = ReplayBuffer()
         self.frame_buffer = FrameBuffer()
 
-        self.online_updated = 0
+        self._target_replace_cnt = 0
 
+        # set the same target as online model
         self.update_target()
 
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+        self.device = torch.device(device)
+
+        self.loss_criterion = nn.SmoothL1Loss()
         self.value_optimizer = optim.RMSprop(self.online_model.parameters(), lr=lr)
 
     def update_target(self):
         for target, online in zip(self.target_model.parameters(),
                                   self.online_model.parameters()):
             target.data.copy_(online.data)
+
+    def optimize_model(self, experiences):
+        states, actions, rewards, next_states, is_terminals = experiences
+
+        max_a_q_sp = self.target_model(next_states).detach().max(1)[0].unsqueeze(1)
+        target_q_sa = rewards + (self.gamma * max_a_q_sp * (1 - is_terminals))
+        q_sa = self.online_model(states).gather(1, actions)
+
+        # td_error = q_sa - target_q_sa
+        value_loss = self.loss_criterion(q_sa, target_q_sa).to(self.device)
+        self.value_optimizer.zero_grad()
+        value_loss.backward()
+        self.value_optimizer.step()
+
+    def train(self, n_episodes=100, render=False):
+        max_score = 0
+        scores = np.zeros(n_episodes)
+        times = []
+
+        training_start = time.time()
+
+        for e in range(n_episodes):
+            self.frame_buffer.clear()
+            score = 0
+            done = False
+
+            raw_state, _ = self.env.reset()
+            self.frame_buffer.add_frame(raw_state)
+
+            episode_start = time.time()
+
+            for step in count():
+                state = self.frame_buffer.get_image()
+                action = self.training_strategy.select_action(self.online_model, state)
+                raw_next_state, reward, done, is_truncated, _ = self.env.step(action)
+                if render:
+                    self.env.render()
+
+                if done:
+                    break
+
+                self.frame_buffer.add_frame(raw_next_state)
+
+            episode_time = (time.time() - episode_start) / 60
+            times.append(episode_time)
+
+            if score > max_score:
+                max_score = score
+            scores[e] = score
+
+            print(f"Episode {e}: Score : {score}, time: {episode_time:.{2}}, Avg score so far: {np.mean(scores[:e + 1])}")
+
 
