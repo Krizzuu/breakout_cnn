@@ -8,7 +8,7 @@ import numpy as np
 from torch import optim
 from PIL import Image
 
-from frame_buffer import FrameBuffer
+from frame_buffer import process_frame
 from replay_buffer import ReplayBuffer
 
 
@@ -69,6 +69,7 @@ class ValueNetwork(nn.Module):
         return int(np.prod(x.shape))
 
     def forward(self, x):
+        x = self._format(x)
         x = self.l1(x)
         x = self.l2(x)
         x = self.output_layer(x)
@@ -80,6 +81,24 @@ class ValueNetwork(nn.Module):
 
     def load_model(self):
         self.load_state_dict(torch.load('./models/' + self.filename + '.pth'))
+
+    def load(self, experiences):
+        states, actions, rewards, new_states, is_terminals = experiences
+        states = torch.from_numpy(states).float().to(self.device)
+        actions = torch.from_numpy(actions).long().to(self.device)
+        new_states = torch.from_numpy(new_states).float().to(self.device)
+        rewards = torch.from_numpy(rewards).float().to(self.device)
+        is_terminals = torch.from_numpy(is_terminals).float().to(self.device)
+        return states, actions, rewards, new_states, is_terminals
+
+    def _format(self, _x):
+        x = _x
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x,
+                             device=self.device,
+                             dtype=torch.float32)
+            x = x.unsqueeze(0)
+        return x
 
 
 class DQN:
@@ -93,6 +112,7 @@ class DQN:
                  replace_target_n,
                  training_strategy_fn,
                  evaluation_strategy_fn,
+                 frame_buffer_fn,
                  filename="breakout"):
         self.env = env
         self.state_space = state_space
@@ -109,7 +129,7 @@ class DQN:
         self.evaluation_strategy = evaluation_strategy_fn()
 
         self.replay_buffer = ReplayBuffer()
-        self.frame_buffer = FrameBuffer()
+        self.frame_buffer = frame_buffer_fn()
 
         self._target_replace_cnt = 0
 
@@ -145,6 +165,7 @@ class DQN:
         max_score = 0
         scores = np.zeros(n_episodes)
         times = []
+        hw = self.frame_buffer.hw
 
         training_start = time.time()
 
@@ -154,7 +175,7 @@ class DQN:
             done = False
 
             raw_state, _ = self.env.reset()
-            self.frame_buffer.add_frame(raw_state)
+            self.frame_buffer.add_raw_frame(raw_state)
 
             episode_start = time.time()
 
@@ -162,13 +183,29 @@ class DQN:
                 state = self.frame_buffer.get_image()
                 action = self.training_strategy.select_action(self.online_model, state)
                 raw_next_state, reward, done, is_truncated, _ = self.env.step(action)
+                next_state = process_frame(raw_next_state, self.frame_buffer.hw)
                 if render:
                     self.env.render()
 
+                experience = (state.reshape(1, 1, hw, hw), action, reward, next_state.reshape(1, 1, hw, hw), done)
+                self.replay_buffer.store(experience)
+
+                min_samples = self.min_batches_to_update * self.replay_buffer.batch_size
+                if len(self.replay_buffer) >= min_samples:
+                    experiences = self.replay_buffer.sample()
+                    experiences = self.online_model.load(experiences)
+                    self.optimize_model(experiences)
+                    self._target_replace_cnt += 1
+                    # print("Online updated !")
+                    if self._target_replace_cnt > self.replace_target_n:
+                        self._target_replace_cnt = 0
+                        self.update_target()
+                        # print("Target updated !")
+                score += reward
                 if done:
                     break
 
-                self.frame_buffer.add_frame(raw_next_state)
+                self.frame_buffer.add_frame(next_state)
 
             episode_time = (time.time() - episode_start) / 60
             times.append(episode_time)

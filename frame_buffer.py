@@ -7,10 +7,10 @@ def process_frame(frame, hw):
         transforms.ToPILImage(),
         transforms.Grayscale(),
         transforms.CenterCrop((175, 150)),
-        transforms.Resize((84, 84)),
-        transforms.ToTensor()
+        transforms.Resize((hw, hw)),
+        transforms.ToImageTensor()
     ])
-    frame = gray_transform(frame).numpy()
+    frame = gray_transform(frame).numpy() / 255
     return frame
 
 
@@ -21,10 +21,13 @@ class FrameBuffer:
         self._alpha = alpha  # discount factor for oldest memories
         self.hw = hw  # height and width of frames
 
+    def add_raw_frame(self, frame):
+        frame = process_frame(frame, self.hw)
+        self.add_frame(frame)
+
     def add_frame(self, frame):
         if len(self._buffer) == self.max_size:
             self._buffer.pop()
-        frame = process_frame(frame, self.hw)
         self._buffer.insert(0, frame)
 
     def get_image(self):

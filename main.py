@@ -1,5 +1,6 @@
 import gymnasium as gym
 
+from frame_buffer import FrameBuffer, process_frame
 from model import DQN
 from strategy import EpsGreedyExpStrategy, GreedyStrategy
 
@@ -8,18 +9,22 @@ gamma = 0.99
 episodes = 1000
 min_batches_to_update = 4
 replace_target_n = 4
+hw = 84
 
 if __name__ == '__main__':
     # getting basic information about environment
     env = gym.make(env_name, render_mode="human")
     action_space = env.action_space.n
-    (s, _) = env.reset()
-    state_space = s.shape
-    state_space = (state_space[2], state_space[0], state_space[1])
+    (raw_s, _) = env.reset()
+
 
     # preparing tools
     training_strategy_fn = lambda: EpsGreedyExpStrategy()
     evaluation_strategy_fn = lambda: GreedyStrategy()
+    frame_buffer_fn = lambda: FrameBuffer(hw=hw)
+
+    s = process_frame(raw_s, hw)
+    state_space = s.shape
 
     # initializing agent
     agent = DQN(
@@ -31,8 +36,11 @@ if __name__ == '__main__':
         min_batches_to_update=min_batches_to_update,
         replace_target_n=replace_target_n,
         training_strategy_fn=training_strategy_fn,
-        evaluation_strategy_fn=evaluation_strategy_fn
+        evaluation_strategy_fn=evaluation_strategy_fn,
+        frame_buffer_fn=frame_buffer_fn
     )
+
+    agent.train(n_episodes=episodes, render=True)
 
 
 
