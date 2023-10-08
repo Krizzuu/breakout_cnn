@@ -87,6 +87,8 @@ class DQN:
                  lr,
                  min_batches_to_update,
                  replace_target_n,
+                 training_strategy_fn,
+                 evaluation_strategy_fn,
                  filename="breakout"):
         self.env = env
         self.state_space = state_space
@@ -98,6 +100,9 @@ class DQN:
 
         self.online_model = ValueNetwork(self.state_space, self.action_space, filename)
         self.target_model = ValueNetwork(self.state_space, self.action_space, filename+"_target")
+
+        self.training_strategy = training_strategy_fn()
+        self.evaluation_strategy = evaluation_strategy_fn()
 
         self.replay_buffer = ReplayBuffer()
         self.frame_buffer = FrameBuffer()
