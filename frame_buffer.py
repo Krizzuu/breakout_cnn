@@ -1,3 +1,4 @@
+import torch
 import torchvision.transforms.v2 as transforms
 import numpy as np
 
@@ -10,12 +11,12 @@ def process_frame(frame, hw):
         transforms.Resize((hw, hw)),
         transforms.ToImageTensor()
     ])
-    frame = gray_transform(frame).numpy() / 255
+    frame = gray_transform(frame) / 255
     return frame
 
 
 class FrameBuffer:
-    def __init__(self, max_size=2, alpha=0.4, hw=84):
+    def __init__(self, max_size=2, alpha=0.35, hw=84):
         self._buffer = []  # memory for last frames
         self.max_size = max_size  # max size of memory
         self._alpha = alpha  # discount factor for oldest memories
@@ -31,12 +32,14 @@ class FrameBuffer:
         self._buffer.insert(0, frame)
 
     def get_image(self):
-        img = self._buffer[0].copy()
+        img = self._buffer[0].detach().clone()
         alpha = self._alpha
         for i in range(1, len(self._buffer)):
-            img += alpha * self._buffer[i]
+            mask = img[:] < 0.01
+            img += alpha * self._buffer[i] * mask
             alpha *= self._alpha
-        img = np.clip(img, 0.0, 1.0)
+        # img = np.clip(img, 0.0, 1.0)
+        img = img.clip(0.0, 1.0)
         return img
 
     def clear(self):
