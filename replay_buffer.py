@@ -3,11 +3,12 @@ import numpy as np
 
 class ReplayBuffer:
     def __init__(self, max_size=10000, batch_size=64):
-        self.frame_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # state
+        self.state_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # state
         self.action_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # action
         self.reward_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # reward
         self.next_frame_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # next state
         self.done_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # is done
+        self.raw_frame_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # raw frame
 
         self.max_size = max_size
         self.batch_size = batch_size
@@ -15,12 +16,13 @@ class ReplayBuffer:
         self.size = 0
 
     def store(self, sample):
-        s, a, r, p, d = sample
-        self.frame_mem[self._idx] = s
+        s, a, r, p, d, rs = sample
+        self.state_mem[self._idx] = s
         self.action_mem[self._idx] = a
         self.reward_mem[self._idx] = r
         self.next_frame_mem[self._idx] = p
         self.done_mem[self._idx] = d
+        self.raw_frame_mem[self._idx] = rs
 
         self._idx += 1
         self._idx = self._idx % self.max_size
@@ -34,7 +36,7 @@ class ReplayBuffer:
 
         idxs = np.random.choice(
             self.size, batch_size, replace=False)
-        experiences = np.vstack(self.frame_mem[idxs]), \
+        experiences = np.vstack(self.state_mem[idxs]), \
             np.vstack(self.action_mem[idxs]), \
             np.vstack(self.reward_mem[idxs]), \
             np.vstack(self.next_frame_mem[idxs]), \

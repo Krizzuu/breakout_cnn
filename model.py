@@ -4,12 +4,36 @@ from itertools import count
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 from torch import optim
+import torchvision.transforms.v2 as transforms
+import numpy as np
 import cv2 as cv
 
-from frame_buffer import process_frame
-from replay_buffer import ReplayBuffer
+
+def process_frame(frame, n_frame=None, hw=84, alpha=0.4):
+    gray_transform = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.Grayscale(),
+        transforms.CenterCrop((175, 150)),
+        transforms.Resize((hw, hw)),
+        transforms.ToImageTensor()
+    ])
+    frame = gray_transform(frame) / 255
+
+    if n_frame is not None:
+        n_frame = gray_transform(n_frame) / 255
+        new_frame = n_frame - frame * alpha
+    else:
+        new_frame = frame
+
+    return new_frame.numpy()
+
+
+def __debug_states(states):
+    for i in range(states.shape[0]):
+        np_img = states[i].detach().cpu().numpy().reshape(84, 84)
+        cv.imwrite(f"./states/{i}.png", np_img * 255)
+
 
 
 class ValueNetwork(nn.Module):
@@ -17,14 +41,17 @@ class ValueNetwork(nn.Module):
                  input_dim,
                  output_dim,
                  filename,
-                 conv_layers=((32, 8, 4, 2), (64, 4, 2, 1), (64, 3, 1, 1)),
-                 fc_dims=(512,)
+                 conv_layers=((8, 3, 1, 0),),
+                 fc_dims=(4096, 512,)
                  ):
         super(ValueNetwork, self).__init__()
         self.input_dim = input_dim
         channels, _, _ = input_dim
 
         # conv_layers = ((32, 8, 4, 2), (64, 4, 2, 1), (64, 3, 1, 1)),
+        # conv_layers = ((8, 3, 1, 0),),
+
+        # fc_dims=(4096, 512,)
 
         # Convolutional layers
 
@@ -43,6 +70,7 @@ class ValueNetwork(nn.Module):
                 self.l1.append(nn.ReLU(inplace=True))
             prev_props = conv_props
 
+        self.l1.append(nn.MaxPool2d(2, 2))
         self.l1.append(nn.Flatten())
 
         # Fully Connected layers
@@ -117,10 +145,12 @@ class DQN:
                  lr,
                  min_batches_to_update,
                  replace_target_n,
-                 training_strategy_fn,
-                 evaluation_strategy_fn,
-                 frame_buffer_fn,
-                 filename="breakout"):
+                 training_strategy,
+                 evaluation_strategy,
+                 replay_buffer,
+                 filename="breakout",
+                 hw=84):
+        self.hw = hw
         self.env = env
         self.state_space = state_space
         self.action_space = action_space
@@ -131,13 +161,11 @@ class DQN:
 
         self.online_model = ValueNetwork(self.state_space, self.action_space, filename)
         self.target_model = ValueNetwork(self.state_space, self.action_space, filename + "_target")
-        self.target_model.eval()
 
-        self.training_strategy = training_strategy_fn()
-        self.evaluation_strategy = evaluation_strategy_fn()
+        self.training_strategy = training_strategy
+        self.evaluation_strategy = evaluation_strategy
 
-        self.replay_buffer = ReplayBuffer()
-        self.frame_buffer = frame_buffer_fn()
+        self.replay_buffer = replay_buffer
 
         self._target_replace_cnt = 0
 
@@ -148,8 +176,8 @@ class DQN:
 
         self.device = torch.device(device)
 
-        self.loss_criterion = nn.SmoothL1Loss()
-        self.value_optimizer = optim.RMSprop(self.online_model.parameters(), lr=lr)
+        self.loss = nn.SmoothL1Loss()
+        self.value_optimizer = optim.Adam(self.online_model.parameters(), lr=lr)
 
     def update_target(self):
         for target, online in zip(self.target_model.parameters(),
@@ -163,9 +191,8 @@ class DQN:
         target_q_sa = rewards + (self.gamma * max_a_q_sp * (1 - is_terminals))
         q_sa = self.online_model(states).gather(1, actions)
 
-        # td_error = q_sa - target_q_sa
-        # value_loss = self.loss_criterion(q_sa, target_q_sa).to(self.device)
-        value_loss = self.loss_criterion(target_q_sa, q_sa).to(self.device)
+        value_loss = self.loss(q_sa, target_q_sa).to(self.device)
+
         self.value_optimizer.zero_grad()
         value_loss.backward()
         self.value_optimizer.step()
@@ -173,36 +200,76 @@ class DQN:
     def train(self, n_episodes=100, render=False):
         max_score = 0
         scores = np.zeros(n_episodes)
+        avg_scores = np.zeros(n_episodes)
+        std_scores = np.zeros(n_episodes)
         times = []
-        hw = self.frame_buffer.hw
 
         training_start = time.time()
         min_samples = self.min_batches_to_update * self.replay_buffer.batch_size
 
         for e in range(n_episodes):
-            self.frame_buffer.clear()
+            was_target_replaced = False
             score = 0
             done = False
 
-            raw_state, _ = self.env.reset()
-            self.frame_buffer.add_raw_frame(raw_state)
+            raw_state, i = self.env.reset()
 
             episode_start = time.time()
 
             step = 0
+            
+            state = process_frame(raw_state)
             for step in count():
-                state = self.frame_buffer.get_image()
+
                 action = self.training_strategy.select_action(self.online_model, state)
-                raw_next_state, reward, done, is_truncated, _ = self.env.step(action)
-                next_state = process_frame(raw_next_state, hw)
-                self.frame_buffer.add_frame(next_state)
+                raw_next_state, reward, done, is_truncated, i = self.env.step(action)
+                next_state = process_frame(raw_state, raw_next_state)
                 if render:
                     self.env.render()
 
-                experience = (state.reshape(1, 1, hw, hw), action, reward, next_state.reshape(1, 1, hw, hw), done)
+                experience = (
+                    state.reshape(1, 1, self.hw, self.hw),
+                    action,
+                    reward,
+                    next_state.reshape(1, 1, self.hw, self.hw),
+                    done,
+                    raw_next_state
+                )
                 self.replay_buffer.store(experience)
 
-                if len(self.replay_buffer) >= min_samples:
+                # if len(self.replay_buffer) >= min_samples:
+                #     experiences = self.replay_buffer.sample()
+                #     experiences = self.online_model.load(experiences)
+                #     self.optimize_model(experiences)
+                #     self._target_replace_cnt += 1
+                #     # print("Online updated !")
+                #     if self._target_replace_cnt > self.replace_target_n:
+                #         self._target_replace_cnt = 0
+                #         self.update_target()
+                #         was_target_replaced = True
+
+                score += reward
+                if done:
+                    break
+                state = next_state
+                raw_state = raw_next_state
+                time.sleep(0.002)
+
+            episode_time = (time.time() - episode_start) / 60
+            times.append(episode_time)
+
+            min_score_idx100 = max(e + 1 - 100, 0)
+
+            if score > max_score:
+                max_score = score
+            scores[e] = score
+            avg_scores[e] = np.mean(scores[min_score_idx100:e + 1])
+            std_scores[e] = np.std(scores[min_score_idx100:e + 1])
+
+            # Update
+            if len(self.replay_buffer) >= min_samples:
+                n_optimizes = np.ceil(step / self.replay_buffer.batch_size).astype(int)
+                for i in range(n_optimizes):
                     experiences = self.replay_buffer.sample()
                     experiences = self.online_model.load(experiences)
                     self.optimize_model(experiences)
@@ -211,37 +278,12 @@ class DQN:
                     if self._target_replace_cnt > self.replace_target_n:
                         self._target_replace_cnt = 0
                         self.update_target()
+                        was_target_replaced = True
                         # print("Target updated !")
 
-                score += reward
-                if done:
-                    break
-
-
-            episode_time = (time.time() - episode_start) / 60
-            times.append(episode_time)
-
-            if score > max_score:
-                max_score = score
-            scores[e] = score
-
-            min_score_idx100 = max(e + 1 - 100, 0)
-            print(f"Episode {e:5}: Score : {score}, time: {episode_time:6.2}, Steps: {step}, "
-                  f"Avg score (last 100): {np.mean(scores[min_score_idx100:e + 1]):.2} Max: {max_score}")
-
-            # Update
-            # if len(self.replay_buffer) >= min_samples:
-            #     n_optimizes = np.ceil(step / self.replay_buffer.batch_size).astype(int)
-            #     for i in range(n_optimizes):
-            #         experiences = self.replay_buffer.sample()
-            #         experiences = self.online_model.load(experiences)
-            #         self.optimize_model(experiences)
-            #         self._target_replace_cnt += 1
-            #         # print("Online updated !")
-            #         if self._target_replace_cnt > self.replace_target_n:
-            #             self._target_replace_cnt = 0
-            #             self.update_target()
-            #             # print("Target updated !")
+            print(f"Episode {e:5}: Score : {int(score):3}, Steps: {step}, "
+                  f"Avg score (last 100): {avg_scores[e]:.2} Max: {max_score} "
+                  f"eps: {self.training_strategy.epsilon:.2} {'Target replaced' if was_target_replaced else self._target_replace_cnt}")
 
             if e > 0 and e % self.replace_target_n == 0:
                 self.target_model.save_model(str(e))
