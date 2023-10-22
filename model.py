@@ -8,6 +8,7 @@ from torch import optim
 import torchvision.transforms.v2 as transforms
 import numpy as np
 import cv2 as cv
+import pandas as pd
 
 
 def process_frame(frame, n_frame=None, hw=84, alpha=0.4):
@@ -286,5 +287,10 @@ class DQN:
                   f"Avg score (last 100): {avg_scores[e]:.2} Max: {max_score} "
                   f"eps: {self.training_strategy.epsilon:.2} {'Target replaced' if was_target_replaced else self._target_replace_cnt}")
 
-            if e > 0 and e % self.replace_target_n == 0:
+            if e > 0 and e % 200:
                 self.target_model.save_model(str(e))
+                df = pd.DataFrame(data=np.array([avg_scores[:e + 1], std_scores[:e + 1]]).T,
+                                  index=np.arange(e + 1),
+                                  columns=['avg100', 'std100'])
+
+
