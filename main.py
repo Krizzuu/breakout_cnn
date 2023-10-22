@@ -10,7 +10,7 @@ env_name = 'BreakoutDeterministic-v4'
 gamma = 0.99
 episodes = 80000
 min_batches_to_update = 4
-replace_target_n = 240
+replace_target_n = 10000
 hw = 84
 
 if __name__ == '__main__':
@@ -21,7 +21,7 @@ if __name__ == '__main__':
     (raw_s, _) = env.reset()
 
     # preparing tools
-    training_strategy = EpsGreedyLinearStrategy(init_epsilon=0.7, min_epsilon=0.085, decay_steps=250000)
+    training_strategy = EpsGreedyLinearStrategy(init_epsilon=0.7, min_epsilon=0.05, decay_steps=250000)
     evaluation_strategy = GreedyStrategy()
     replay_buffer = ReplayBuffer(max_size=40000)
 

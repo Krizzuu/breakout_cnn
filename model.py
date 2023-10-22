@@ -48,8 +48,8 @@ class ValueNetwork(nn.Module):
         self.input_dim = input_dim
         channels, _, _ = input_dim
 
-        # conv_layers = ((32, 8, 4, 2), (64, 4, 2, 1), (64, 3, 1, 1)),
-        # conv_layers = ((8, 3, 1, 0),),
+        # conv_layers=((16, 8, 4, 2), (32, 4, 2, 1),),
+        # conv_layers=((8, 3, 1, 0),),
 
         # fc_dims=(4096, 512,)
 
@@ -58,7 +58,7 @@ class ValueNetwork(nn.Module):
         kernels, kernel_size, stride, padding = conv_layers[0]
         self.l1 = nn.Sequential()
         self.l1.append(nn.Conv2d(1, kernels, kernel_size=kernel_size, stride=stride, padding=padding))
-        self.l1.append(nn.ReLU(inplace=True))
+        self.l1.append(nn.ReLU())
 
         prev_props = (1, 1, 1)
 
@@ -67,7 +67,7 @@ class ValueNetwork(nn.Module):
             if i > 0:
                 conv = nn.Conv2d(prev_props[0], kernels, kernel_size=kernel_size, stride=stride, padding=padding)
                 self.l1.append(conv)
-                self.l1.append(nn.ReLU(inplace=True))
+                self.l1.append(nn.ReLU())
             prev_props = conv_props
 
         self.l1.append(nn.MaxPool2d(2, 2))
@@ -237,23 +237,24 @@ class DQN:
                 )
                 self.replay_buffer.store(experience)
 
-                # if len(self.replay_buffer) >= min_samples:
-                #     experiences = self.replay_buffer.sample()
-                #     experiences = self.online_model.load(experiences)
-                #     self.optimize_model(experiences)
-                #     self._target_replace_cnt += 1
-                #     # print("Online updated !")
-                #     if self._target_replace_cnt > self.replace_target_n:
-                #         self._target_replace_cnt = 0
-                #         self.update_target()
-                #         was_target_replaced = True
+                # Update
+                if len(self.replay_buffer) >= min_samples:
+                    experiences = self.replay_buffer.sample()
+                    experiences = self.online_model.load(experiences)
+                    self.optimize_model(experiences)
+                    self._target_replace_cnt += 1
+                    # print("Online updated !")
+                    if self._target_replace_cnt > self.replace_target_n:
+                        self._target_replace_cnt = 0
+                        self.update_target()
+                        was_target_replaced = True
 
                 score += reward
                 if done:
                     break
                 state = next_state
                 raw_state = raw_next_state
-                time.sleep(0.002)
+                # time.sleep(0.002)
 
             episode_time = (time.time() - episode_start) / 60
             times.append(episode_time)
@@ -267,19 +268,19 @@ class DQN:
             std_scores[e] = np.std(scores[min_score_idx100:e + 1])
 
             # Update
-            if len(self.replay_buffer) >= min_samples:
-                n_optimizes = np.ceil(step / self.replay_buffer.batch_size).astype(int)
-                for i in range(n_optimizes):
-                    experiences = self.replay_buffer.sample()
-                    experiences = self.online_model.load(experiences)
-                    self.optimize_model(experiences)
-                    self._target_replace_cnt += 1
-                    # print("Online updated !")
-                    if self._target_replace_cnt > self.replace_target_n:
-                        self._target_replace_cnt = 0
-                        self.update_target()
-                        was_target_replaced = True
-                        # print("Target updated !")
+            # if len(self.replay_buffer) >= min_samples:
+            #     n_optimizes = np.ceil(step / self.replay_buffer.batch_size).astype(int)
+            #     for i in range(n_optimizes):
+            #         experiences = self.replay_buffer.sample()
+            #         experiences = self.online_model.load(experiences)
+            #         self.optimize_model(experiences)
+            #         self._target_replace_cnt += 1
+            #         # print("Online updated !")
+            #         if self._target_replace_cnt > self.replace_target_n:
+            #             self._target_replace_cnt = 0
+            #             self.update_target()
+            #             was_target_replaced = True
+            #             # print("Target updated !")
 
             print(f"Episode {e:5}: Score : {int(score):3}, Steps: {step}, "
                   f"Avg score (last 100): {avg_scores[e]:.2} Max: {max_score} "
