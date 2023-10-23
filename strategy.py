@@ -57,7 +57,7 @@ class EpsGreedyLinearStrategy(Strategy):
 
 
 class EpsGreedyExpStrategy(Strategy):
-    def __init__(self, init_epsilon=1.0, min_epsilon=0.1, decay_steps=10000):
+    def __init__(self, init_epsilon=1.0, min_epsilon=0.05, decay_steps=25000):
         self.epsilon = init_epsilon
         self.init_epsilon = init_epsilon
         self.decay_steps = decay_steps
