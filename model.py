@@ -43,7 +43,7 @@ class ValueNetwork(nn.Module):
                  output_dim,
                  filename,
                  conv_layers=((8, 3, 1, 0),),
-                 fc_dims=(512,32,)
+                 fc_dims=(512, 32,)
                  ):
         super(ValueNetwork, self).__init__()
         self.input_dim = input_dim
@@ -149,7 +149,7 @@ class DQN:
                  training_strategy,
                  evaluation_strategy,
                  replay_buffer,
-                 filename="breakout",
+                 filename="breakout_cnn",
                  hw=84):
         self.hw = hw
         self.env = env
@@ -163,15 +163,22 @@ class DQN:
         self.online_model = ValueNetwork(self.state_space, self.action_space, filename)
         self.target_model = ValueNetwork(self.state_space, self.action_space, filename + "_target")
 
-        self.training_strategy = training_strategy
-        self.evaluation_strategy = evaluation_strategy
-
-        self.replay_buffer = replay_buffer
+        try:
+            self.online_model.load_model()
+            print('loaded pretrained model')
+        except:
+            pass
 
         self._target_replace_cnt = 0
 
         # set the same target as online model
         self.update_target()
+
+        self.training_strategy = training_strategy
+        self.evaluation_strategy = evaluation_strategy
+
+        self.replay_buffer = replay_buffer
+
 
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
