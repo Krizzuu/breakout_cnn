@@ -109,8 +109,8 @@ class ValueNetwork(nn.Module):
 
         return x
 
-    def save_model(self, note=""):
-        torch.save(self.state_dict(), './models/' + self.filename + note + '.pth')
+    def save_model(self):
+        torch.save(self.state_dict(), './models/' + self.filename + '.pth')
 
     def load_model(self):
         self.load_state_dict(torch.load('./models/' + self.filename + '.pth'))
@@ -295,7 +295,7 @@ class DQN:
                   f"eps: {self.training_strategy.epsilon:.2} {'Target replaced' if was_target_replaced else self._target_replace_cnt}")
 
             if e > 0 and e % 200 == 0:
-                self.online_model.save_model("last_run")
+                self.online_model.save_model()
                 df = pd.DataFrame(data=np.array([avg_scores[:e + 1], std_scores[:e + 1]]).T,
                                   index=np.arange(e + 1),
                                   columns=['avg100', 'std100'])
