@@ -43,7 +43,7 @@ class ValueNetwork(nn.Module):
                  output_dim,
                  filename,
                  conv_layers=((8, 3, 1, 0),),
-                 fc_dims=(4096, 512,)
+                 fc_dims=(512,32,)
                  ):
         super(ValueNetwork, self).__init__()
         self.input_dim = input_dim
@@ -287,10 +287,11 @@ class DQN:
                   f"Avg score (last 100): {avg_scores[e]:.2} Max: {max_score} "
                   f"eps: {self.training_strategy.epsilon:.2} {'Target replaced' if was_target_replaced else self._target_replace_cnt}")
 
-            if e > 0 and e % 200:
-                self.target_model.save_model(str(e))
+            if e > 0 and e % 200 == 0:
+                self.target_model.save_model("last_run")
                 df = pd.DataFrame(data=np.array([avg_scores[:e + 1], std_scores[:e + 1]]).T,
                                   index=np.arange(e + 1),
                                   columns=['avg100', 'std100'])
+                df.to_csv("last_run.csv")
 
 
