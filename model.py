@@ -6,8 +6,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
 import torchvision.transforms.v2 as transforms
+from torchvision.utils import save_image
 import numpy as np
-import cv2 as cv
+# import cv2 as cv
 import pandas as pd
 
 
@@ -17,7 +18,7 @@ def process_frame(frame, n_frame=None, hw=84, alpha=0.4):
         transforms.Grayscale(),
         transforms.CenterCrop((175, 150)),
         transforms.Resize((hw, hw)),
-        transforms.ToImageTensor()
+        transforms.PILToTensor()
     ])
     frame = gray_transform(frame) / 255
 
@@ -32,8 +33,9 @@ def process_frame(frame, n_frame=None, hw=84, alpha=0.4):
 
 def __debug_states(states):
     for i in range(states.shape[0]):
-        np_img = states[i].detach().cpu().numpy().reshape(84, 84)
-        cv.imwrite(f"./states/{i}.png", np_img * 255)
+        save_image(states[i], f"./states/{i}.png")
+    #     np_img = states[i].detach().cpu().numpy().reshape(84, 84)
+    #     cv.imwrite(f"./states/{i}.png", np_img * 255)
 
 
 
@@ -43,7 +45,7 @@ class ValueNetwork(nn.Module):
                  output_dim,
                  filename,
                  conv_layers=((8, 3, 1, 0),),
-                 fc_dims=(512, 32,)
+                 fc_dims=(512, 64,)
                  ):
         super(ValueNetwork, self).__init__()
         self.input_dim = input_dim
@@ -179,8 +181,9 @@ class DQN:
 
         self.replay_buffer = replay_buffer
 
-
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+        print(f"Using device: {device}")
 
         self.device = torch.device(device)
 
