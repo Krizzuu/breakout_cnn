@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
-import torchvision.transforms.v2 as transforms
+import torchvision.transforms as transforms
 from torchvision.utils import save_image
 import numpy as np
 # import cv2 as cv
@@ -17,8 +17,8 @@ def process_frame(frame, n_frame=None, hw=84, alpha=0.4):
         transforms.ToPILImage(),
         transforms.Grayscale(),
         transforms.CenterCrop((175, 150)),
-        transforms.Resize((hw, hw)),
-        transforms.PILToTensor()
+        transforms.Resize((84, 84)),
+        transforms.ToTensor()
     ])
     frame = gray_transform(frame) / 255
 
