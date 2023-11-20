@@ -13,6 +13,7 @@ episodes = 80000
 min_batches_to_update = 4
 replace_target_n = 10000
 hw = 84
+lr = 0.001
 
 if __name__ == '__main__':
     # getting basic information about environment
@@ -38,7 +39,7 @@ if __name__ == '__main__':
         state_space,
         action_space,
         gamma,
-        lr=0.001,
+        lr=lr,
         min_batches_to_update=min_batches_to_update,
         replace_target_n=replace_target_n,
         training_strategy=training_strategy,

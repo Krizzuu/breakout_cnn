@@ -44,8 +44,8 @@ class ValueNetwork(nn.Module):
                  input_dim,
                  output_dim,
                  filename,
-                 conv_layers=((8, 3, 1, 0),),
-                 fc_dims=(512, 64,)
+                 conv_layers=((16, 8, 4, 2), (32, 4, 2, 1),),
+                 fc_dims=(256,)
                  ):
         super(ValueNetwork, self).__init__()
         self.input_dim = input_dim
@@ -73,7 +73,7 @@ class ValueNetwork(nn.Module):
                 self.l1.append(nn.ReLU())
             prev_props = conv_props
 
-        self.l1.append(nn.MaxPool2d(2, 2))
+        # self.l1.append(nn.MaxPool2d(2, 2))
         self.l1.append(nn.Flatten())
 
         # Fully Connected layers
@@ -234,7 +234,7 @@ class DQN:
 
                 action = self.training_strategy.select_action(self.online_model, state)
                 raw_next_state, reward, done, is_truncated, i = self.env.step(action)
-                next_state = process_frame(raw_state, raw_next_state)
+                next_state = process_frame(raw_next_state)
                 if render:
                     self.env.render()
 
@@ -297,7 +297,7 @@ class DQN:
                   f"Avg score (last 100): {avg_scores[e]:.2} Max: {max_score} "
                   f"eps: {self.training_strategy.epsilon:.2} {'Target replaced' if was_target_replaced else self._target_replace_cnt}")
 
-            if e > 0 and e % 200 == 0:
+            if e + 1 % 200 == 0:
                 self.online_model.save_model()
                 df = pd.DataFrame(data=np.array([avg_scores[:e + 1], std_scores[:e + 1]]).T,
                                   index=np.arange(e + 1),

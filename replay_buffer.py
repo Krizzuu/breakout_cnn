@@ -6,7 +6,7 @@ class ReplayBuffer:
         self.state_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # state
         self.action_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # action
         self.reward_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # reward
-        self.next_frame_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # next state
+        self.next_state_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # next state
         self.done_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # is done
         self.raw_frame_mem = np.empty(shape=(max_size), dtype=np.ndarray)  # raw frame
 
@@ -20,9 +20,9 @@ class ReplayBuffer:
         self.state_mem[self._idx] = s
         self.action_mem[self._idx] = a
         self.reward_mem[self._idx] = r
-        self.next_frame_mem[self._idx] = p
+        self.next_state_mem[self._idx] = p
         self.done_mem[self._idx] = d
-        self.raw_frame_mem[self._idx] = rs
+        # self.raw_frame_mem[self._idx] = rs
 
         self._idx += 1
         self._idx = self._idx % self.max_size
@@ -39,7 +39,7 @@ class ReplayBuffer:
         experiences = np.vstack(self.state_mem[idxs]), \
             np.vstack(self.action_mem[idxs]), \
             np.vstack(self.reward_mem[idxs]), \
-            np.vstack(self.next_frame_mem[idxs]), \
+            np.vstack(self.next_state_mem[idxs]), \
             np.vstack(self.done_mem[idxs])
         return experiences
 
